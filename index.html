@@ -1,0 +1,795 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SMART Document Intelligence</title>
+    <meta
+      name="description"
+      content="KI-Plattform fuer Dokumentenmanagement, Wissensmanagement, Risikoerkennung und Projektsteuerung."
+    />
+    <style>
+      :root {
+        --primary: #527df6;
+        --primary-dark: #335bd8;
+        --ink: #182033;
+        --muted: #667085;
+        --line: #e4e8f2;
+        --background: #f6f8fc;
+        --soft-blue: #eef3ff;
+        --green: #11845b;
+        --green-bg: #e8f7ef;
+        --yellow: #946200;
+        --yellow-bg: #fff4d6;
+        --red: #c0362c;
+        --red-bg: #ffebe9;
+        --shadow: 0 18px 45px rgba(34, 49, 84, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        color: var(--ink);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background:
+          radial-gradient(circle at 8% 0%, rgba(82, 125, 246, 0.08), transparent 32rem),
+          linear-gradient(180deg, #ffffff 0%, var(--background) 38rem);
+      }
+
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+
+      .shell {
+        display: grid;
+        grid-template-columns: 18rem minmax(0, 1fr);
+        min-height: 100vh;
+      }
+
+      .sidebar {
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+        border-right: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.9);
+        padding: 1.25rem;
+        backdrop-filter: blur(18px);
+      }
+
+      .brand,
+      .nav button,
+      .search,
+      .source,
+      .risk-row,
+      .task,
+      .brand-preview {
+        display: flex;
+        align-items: center;
+      }
+
+      .brand {
+        gap: 0.8rem;
+      }
+
+      .brand-mark {
+        display: grid;
+        width: 2.6rem;
+        height: 2.6rem;
+        place-items: center;
+        border-radius: 0.5rem;
+        color: #ffffff;
+        background: var(--primary);
+        box-shadow: 0 10px 28px rgba(82, 125, 246, 0.28);
+        font-weight: 900;
+      }
+
+      .brand strong,
+      .brand span {
+        display: block;
+      }
+
+      .brand span,
+      .muted,
+      .metric small,
+      .compact small,
+      .source span,
+      .task small {
+        color: var(--muted);
+        font-size: 0.82rem;
+      }
+
+      .tenant-label,
+      .eyebrow {
+        color: var(--muted);
+        font-size: 0.74rem;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      select,
+      .search,
+      .chat-input {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 0.5rem;
+        background: #ffffff;
+        color: var(--ink);
+      }
+
+      select {
+        margin-top: 0.35rem;
+        padding: 0.75rem 0.8rem;
+      }
+
+      .nav {
+        display: grid;
+        gap: 0.25rem;
+      }
+
+      .nav button {
+        justify-content: flex-start;
+        gap: 0.72rem;
+        min-height: 2.45rem;
+        border: 0;
+        border-radius: 0.45rem;
+        background: transparent;
+        color: #344054;
+        padding: 0 0.75rem;
+        text-align: left;
+      }
+
+      .nav button:first-child,
+      .nav button:hover {
+        background: var(--soft-blue);
+        color: var(--primary-dark);
+      }
+
+      .security {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: auto;
+        border: 1px solid #d7e2ff;
+        border-radius: 0.5rem;
+        background: var(--soft-blue);
+        padding: 0.9rem;
+      }
+
+      .workspace {
+        min-width: 0;
+        padding: 1.4rem;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 1.2rem;
+      }
+
+      h1,
+      h2,
+      p {
+        margin-top: 0;
+      }
+
+      h1 {
+        margin-bottom: 0;
+        font-size: clamp(1.7rem, 2.3vw, 2.5rem);
+      }
+
+      h2 {
+        margin-bottom: 0.85rem;
+        font-size: 1rem;
+      }
+
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+      }
+
+      .search {
+        gap: 0.6rem;
+        width: min(34rem, 38vw);
+        min-height: 2.75rem;
+        padding: 0 0.85rem;
+      }
+
+      .search input,
+      .chat-input input {
+        min-width: 0;
+        width: 100%;
+        border: 0;
+        outline: 0;
+        background: transparent;
+      }
+
+      .primary {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        min-height: 2.75rem;
+        border: 0;
+        border-radius: 0.5rem;
+        background: var(--primary);
+        color: #ffffff;
+        padding: 0 1rem;
+        white-space: nowrap;
+      }
+
+      .metrics,
+      .grid,
+      .cockpit,
+      .mode-grid,
+      .project-grid,
+      .agent-grid,
+      .report-grid {
+        display: grid;
+        gap: 0.85rem;
+      }
+
+      .metrics {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        margin-bottom: 0.85rem;
+      }
+
+      .metric,
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 0.5rem;
+        background: rgba(255, 255, 255, 0.94);
+        box-shadow: var(--shadow);
+      }
+
+      .metric {
+        display: grid;
+        gap: 0.3rem;
+        padding: 1rem;
+      }
+
+      .metric strong {
+        font-size: 1.9rem;
+      }
+
+      .grid {
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+      }
+
+      .panel {
+        min-width: 0;
+        padding: 1rem;
+      }
+
+      .wide {
+        grid-column: span 12;
+      }
+
+      .span-8 {
+        grid-column: span 8;
+      }
+
+      .span-7 {
+        grid-column: span 7;
+      }
+
+      .span-5 {
+        grid-column: span 5;
+      }
+
+      .span-4 {
+        grid-column: span 4;
+      }
+
+      .cockpit {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+      }
+
+      .compact,
+      .source,
+      .risk-row,
+      .task,
+      .chat-answer,
+      .timeline div,
+      .brand-preview {
+        border: 1px solid var(--line);
+        border-radius: 0.5rem;
+        background: #ffffff;
+        padding: 0.75rem;
+      }
+
+      .compact {
+        display: grid;
+        gap: 0.25rem;
+      }
+
+      .compact strong {
+        font-size: 1.2rem;
+      }
+
+      .dropzone {
+        display: grid;
+        min-height: 12rem;
+        place-items: center;
+        gap: 0.35rem;
+        border: 1px dashed #b6c7ff;
+        border-radius: 0.5rem;
+        background: linear-gradient(180deg, #f7faff, #ffffff);
+        color: var(--primary-dark);
+        text-align: center;
+        padding: 1rem;
+      }
+
+      .pill-row,
+      .tag-cloud,
+      .citations,
+      .roles {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+      }
+
+      .pill,
+      .status {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 1.8rem;
+        border-radius: 999px;
+        padding: 0 0.65rem;
+        font-size: 0.82rem;
+        font-weight: 800;
+      }
+
+      .pill {
+        background: #f7f8fb;
+        color: #344054;
+      }
+
+      .status.green {
+        color: var(--green);
+        background: var(--green-bg);
+      }
+
+      .status.yellow {
+        color: var(--yellow);
+        background: var(--yellow-bg);
+      }
+
+      .status.red {
+        color: var(--red);
+        background: var(--red-bg);
+      }
+
+      .mode-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .mode-grid button,
+      .agent-grid button,
+      .report-grid button {
+        min-height: 2.6rem;
+        border: 1px solid var(--line);
+        border-radius: 0.45rem;
+        background: #ffffff;
+        color: #344054;
+        padding: 0.45rem 0.65rem;
+      }
+
+      .mode-grid button:first-child,
+      .agent-grid button:nth-child(-n + 3) {
+        border-color: #b6c7ff;
+        background: var(--soft-blue);
+        color: var(--primary-dark);
+      }
+
+      .analysis-output {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.75rem;
+        margin-top: 0.9rem;
+        border: 1px solid #dce5ff;
+        border-radius: 0.5rem;
+        background: var(--soft-blue);
+        padding: 0.85rem;
+      }
+
+      .analysis-output p {
+        grid-column: 1 / -1;
+        line-height: 1.55;
+      }
+
+      .relationships,
+      .source-list,
+      .risk-list,
+      .tasks,
+      .timeline {
+        display: grid;
+        gap: 0.55rem;
+      }
+
+      .relationship {
+        display: grid;
+        grid-template-columns: 7rem minmax(8rem, 1fr) 9rem minmax(12rem, 1.4fr);
+        gap: 0.6rem;
+        border: 1px solid var(--line);
+        border-radius: 0.5rem;
+        background: #ffffff;
+        padding: 0.75rem;
+      }
+
+      .source,
+      .risk-row,
+      .task {
+        gap: 0.6rem;
+        justify-content: space-between;
+      }
+
+      .risk-row b {
+        min-width: 3.4rem;
+      }
+
+      .project-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .chat-answer {
+        line-height: 1.5;
+      }
+
+      .chat-input {
+        display: flex;
+        gap: 0.55rem;
+        margin-top: 0.75rem;
+        padding: 0.45rem;
+      }
+
+      .agent-grid {
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+      }
+
+      .report-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .brand-preview {
+        gap: 0.8rem;
+      }
+
+      .swatch {
+        width: 2.4rem;
+        height: 2.4rem;
+        border-radius: 0.45rem;
+        background: var(--primary);
+      }
+
+      @media (max-width: 1180px) {
+        .shell {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          position: static;
+          height: auto;
+        }
+
+        .nav {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .metrics,
+        .cockpit,
+        .agent-grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .span-8,
+        .span-7,
+        .span-5,
+        .span-4 {
+          grid-column: span 12;
+        }
+      }
+
+      @media (max-width: 760px) {
+        .workspace,
+        .sidebar {
+          padding: 0.9rem;
+        }
+
+        .topbar,
+        .actions {
+          align-items: stretch;
+          flex-direction: column;
+        }
+
+        .search {
+          width: 100%;
+        }
+
+        .metrics,
+        .cockpit,
+        .mode-grid,
+        .analysis-output,
+        .relationship,
+        .project-grid,
+        .agent-grid,
+        .report-grid,
+        .nav {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">SD</div>
+          <div>
+            <strong>SMART</strong>
+            <span>Document Intelligence</span>
+          </div>
+        </div>
+
+        <label>
+          <span class="tenant-label">Mandant</span>
+          <select aria-label="Mandant">
+            <option>BuiltSmart Hub</option>
+            <option>BuiltSmart AI</option>
+            <option>Metzger - Real Estate Advisory</option>
+            <option>Kundenmandant 1</option>
+          </select>
+        </label>
+
+        <nav class="nav" aria-label="Hauptnavigation">
+          <button>Startdashboard</button>
+          <button>Dokumentenimport</button>
+          <button>Analysezentrum</button>
+          <button>Dokumentenübersicht</button>
+          <button>Risikodashboard</button>
+          <button>Aufgaben</button>
+          <button>Fristen</button>
+          <button>Projekte</button>
+          <button>KI-Projektakte</button>
+          <button>Wissen</button>
+          <button>Agenten</button>
+          <button>Management</button>
+          <button>Export</button>
+          <button>Einstellungen</button>
+          <button>Mandanten</button>
+        </nav>
+
+        <div class="security">
+          <span>●</span>
+          <div>
+            <strong>Datenschutzmodus aktiv</strong>
+            <span class="muted">Mandantentrennung, BYOK und Löschkonzept vorbereitet.</span>
+          </div>
+        </div>
+      </aside>
+
+      <section class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">BuiltSmart Hub · KI-Auswertung für KMU-Dokumente</p>
+            <h1>SMART Document Intelligence</h1>
+          </div>
+          <div class="actions">
+            <div class="search">
+              <span>⌕</span>
+              <input placeholder="Volltextsuche über Dokumente, Risiken, Fristen" />
+            </div>
+            <button class="primary">Import starten</button>
+          </div>
+        </header>
+
+        <section class="metrics" aria-label="Kennzahlen">
+          <article class="metric"><span>Analysierte Dokumente</span><strong>5</strong><small>+12 diese Woche</small></article>
+          <article class="metric"><span>Kritische Dokumente</span><strong>1</strong><small>1 neu seit gestern</small></article>
+          <article class="metric"><span>Offene Aufgaben</span><strong>10</strong><small>6 mit Verantwortlichen</small></article>
+          <article class="metric"><span>Erkannte Fristen</span><strong>6</strong><small>3 innerhalb 14 Tage</small></article>
+          <article class="metric"><span>Rote Risiken</span><strong>3</strong><small>vertraglich prüfen</small></article>
+        </section>
+
+        <section class="grid">
+          <section class="panel wide">
+            <p class="eyebrow">Unternehmenscockpit</p>
+            <h2>Management-Dashboard für Portfolio, Warnungen und Entscheidungen</h2>
+            <div class="cockpit">
+              <article class="compact"><span>Projektportfolio</span><strong>3 aktiv</strong><small>1 kritisch</small></article>
+              <article class="compact"><span>Vertragsstatus</span><strong>12 Verträge</strong><small>3 Fristen in 6 Monaten</small></article>
+              <article class="compact"><span>Kostenwarnungen</span><strong>2 offen</strong><small>Nachtrag und Rechnung</small></article>
+              <article class="compact"><span>Lieferantenbewertung</span><strong>B-</strong><small>2 Lieferverzüge erkannt</small></article>
+              <article class="compact"><span>ESG-Status</span><strong>Prüfbar</strong><small>4 fehlende Nachweise</small></article>
+              <article class="compact"><span>Terminwarnungen</span><strong>3</strong><small>Brandschutz, Fassade, Vergabe</small></article>
+            </div>
+          </section>
+
+          <section class="panel span-5">
+            <p class="eyebrow">Dokumentenimport</p>
+            <h2>Ordner, Dateien und Exporte analysieren</h2>
+            <div class="dropzone">
+              <strong>Dateien oder Ordner hier ablegen</strong>
+              <span>PDF · Word · Excel · E-Mail · OCR · lokale Ordner · Cloudspeicher</span>
+            </div>
+          </section>
+
+          <section class="panel span-7">
+            <p class="eyebrow">Analysezentrum</p>
+            <h2>KI-Modus und strukturierte Ausgabe</h2>
+            <div class="mode-grid">
+              <button>Risikoanalyse</button>
+              <button>Management Summary</button>
+              <button>Aufgaben und Fristen</button>
+              <button>Rechnungsprüfung</button>
+              <button>Vertragsprüfung</button>
+              <button>Projektstatus</button>
+            </div>
+            <div class="analysis-output">
+              <div><span class="muted">Dokument</span><br /><strong>Nachtrag Elektro Gewerke 3</strong></div>
+              <div><span class="muted">Ausgabeformat</span><br /><strong>Risikoanalyse</strong></div>
+              <div><span class="muted">Ampelbewertung</span><br /><strong class="status red">Rot</strong></div>
+              <p>Mehrkosten von 48.600 EUR werden mit geänderten Leitungswegen begründet. Die Freigabe, Terminfolge und Nachtragsfrist sind prüfbedürftig.</p>
+            </div>
+          </section>
+
+          <section class="panel wide">
+            <p class="eyebrow">KI-Projektakte</p>
+            <h2>Dokumente automatisch verknüpfen und Projektwissen ableiten</h2>
+            <div class="relationships">
+              <div class="relationship"><strong>Vertrag</strong><span>Fertigstellung 30.11.2026</span><strong>Protokoll KW24</strong><span>Verzug Brandschutz gefährdet Terminpuffer</span></div>
+              <div class="relationship"><strong>Lieferschein</strong><span>Lieferung 5 Tage verspätet</span><strong>Nachtrag Elektro</strong><span>Mehrkosten und Bauablaufstörung zusammenführen</span></div>
+              <div class="relationship"><strong>Rechnung</strong><span>+7,8 % Mengenabweichung</span><strong>Lieferschein 1458</strong><span>Zahlungsfreigabe erst nach Positionsabgleich</span></div>
+            </div>
+            <div class="pill-row" style="margin-top: 0.75rem">
+              <span class="pill">Projektstatus</span>
+              <span class="pill">Management Summary</span>
+              <span class="pill">Risikobericht</span>
+              <span class="pill">Entscheidungsvorlage</span>
+              <span class="pill">Lessons Learned</span>
+              <span class="pill">Projektchronologie</span>
+            </div>
+          </section>
+
+          <section class="panel span-4">
+            <p class="eyebrow">Dokumentenüberwachung</p>
+            <h2>Quellen verbinden</h2>
+            <div class="source-list">
+              <div class="source"><strong>Lokale Projektordner</strong><span class="status green">Aktiv</span></div>
+              <div class="source"><strong>SharePoint Bauleitung</strong><span class="status green">Aktiv</span></div>
+              <div class="source"><strong>OneDrive Geschäftsführung</strong><span class="status yellow">Bereit</span></div>
+              <div class="source"><strong>SFTP Lieferantenportal</strong><span class="pill">Geplant</span></div>
+            </div>
+          </section>
+
+          <section class="panel span-8">
+            <p class="eyebrow">Unternehmensweites Wissensmanagement</p>
+            <h2>Semantische Suche, Schlagworte und Lessons Learned</h2>
+            <div class="search" style="width: 100%"><span>⌕</span><strong>Welche Lieferanten verursachen die meisten Probleme?</strong></div>
+            <div class="tag-cloud" style="margin-top: 0.75rem">
+              <span class="pill">Nachtrag</span>
+              <span class="pill">Terminverzug</span>
+              <span class="pill">Gewährleistung</span>
+              <span class="pill">Brandschutz</span>
+              <span class="pill">Lieferabweichung</span>
+              <span class="pill">Kostenwarnung</span>
+              <span class="pill">Best Practice</span>
+              <span class="pill">ESG</span>
+            </div>
+          </section>
+
+          <section class="panel span-4">
+            <p class="eyebrow">Risiko-Frühwarnsystem</p>
+            <h2>Risikowert und Maßnahmen</h2>
+            <div class="risk-list">
+              <div class="risk-row"><span><strong>Terminrisiko</strong><br /><small>72 % · Auswirkung hoch</small></span><b class="status red">86</b></div>
+              <div class="risk-row"><span><strong>Kostenrisiko</strong><br /><small>58 % · Auswirkung mittel</small></span><b class="status yellow">64</b></div>
+              <div class="risk-row"><span><strong>Compliance-Risiko</strong><br /><small>24 % · Auswirkung mittel</small></span><b class="status green">31</b></div>
+            </div>
+          </section>
+
+          <section class="panel span-4">
+            <p class="eyebrow">Aufgabenverfolgung</p>
+            <h2>Automatisch erkannte To-dos</h2>
+            <div class="tasks">
+              <div class="task"><span>Mengenansatz prüfen</span><small>Bauleitung</small></div>
+              <div class="task"><span>Liefertermin schriftlich bestätigen</span><small>Projektleitung</small></div>
+              <div class="task"><span>Teilfreigabe vorbereiten</span><small>Controlling</small></div>
+            </div>
+          </section>
+
+          <section class="panel span-4">
+            <p class="eyebrow">Fristenerkennung</p>
+            <h2>Automatische Überwachung</h2>
+            <div class="tasks">
+              <div class="task"><span>Stellungnahme bis 25.06.2026</span><small>Nachtragsfrist</small></div>
+              <div class="task"><span>Skonto bis 24.06.2026</span><small>Zahlungsfrist</small></div>
+              <div class="task"><span>Preisbindung bis 09.07.2026</span><small>Vergabefrist</small></div>
+            </div>
+          </section>
+
+          <section class="panel span-4">
+            <p class="eyebrow">Dokumentenchat</p>
+            <h2>Antworten mit Quellen</h2>
+            <div class="chat-answer">Priorität haben Nachtrag Elektro, Rechnung Juni und Angebot Stahlbau. Quellen: DOC-1042, DOC-1019, DOC-1007.</div>
+            <div class="citations" style="margin-top: 0.75rem">
+              <span class="pill">DOC-1042</span>
+              <span class="pill">DOC-1019</span>
+              <span class="pill">DOC-1007</span>
+            </div>
+            <div class="chat-input"><input value="Welche Fristen laufen diese Woche ab?" /></div>
+          </section>
+
+          <section class="panel span-8">
+            <p class="eyebrow">Projekte</p>
+            <h2>Projektstatus mit Management Summary</h2>
+            <div class="project-grid">
+              <article class="compact"><strong>Wohnquartier Lindenweg</strong><span class="status red">Rot</span><small>Nachtrag und Lieferverzug beeinflussen Kosten und Terminplan.</small></article>
+              <article class="compact"><strong>Logistikhalle Nord</strong><span class="status yellow">Gelb</span><small>Angebotsprüfung offen, Preisbindung endet in 18 Tagen.</small></article>
+              <article class="compact"><strong>Büroausbau Marienplatz</strong><span class="status yellow">Gelb</span><small>Mängelliste priorisieren, sonst verzögert sich die Schlussrechnung.</small></article>
+            </div>
+          </section>
+
+          <section class="panel wide">
+            <p class="eyebrow">KI-Agenten-System</p>
+            <h2>Spezialisierte Agenten mit Prompts und Auswertungslogiken</h2>
+            <div class="agent-grid">
+              <button>Contract Agent</button>
+              <button>Risk Agent</button>
+              <button>Invoice Agent</button>
+              <button>Delivery Agent</button>
+              <button>Project Agent</button>
+              <button>Reporting Agent</button>
+              <button>Knowledge Agent</button>
+            </div>
+          </section>
+
+          <section class="panel span-4">
+            <p class="eyebrow">KI-Managementberichte</p>
+            <h2>PDF-Export</h2>
+            <div class="report-grid">
+              <button>Wochenbericht</button>
+              <button>Monatsbericht</button>
+              <button>Risikobericht</button>
+              <button>Vorstandsbericht</button>
+            </div>
+          </section>
+
+          <section class="panel span-4">
+            <p class="eyebrow">Rollen, Rechte und Audit Trail</p>
+            <h2>Governance</h2>
+            <div class="roles">
+              <span class="pill">Administrator</span>
+              <span class="pill">Geschäftsführung</span>
+              <span class="pill">Projektleiter</span>
+              <span class="pill">Controller</span>
+              <span class="pill">Bauleiter</span>
+            </div>
+          </section>
+
+          <section class="panel span-4">
+            <p class="eyebrow">White-Label</p>
+            <h2>Mandantenfähige Oberfläche</h2>
+            <div class="brand-preview">
+              <span class="swatch"></span>
+              <div>
+                <strong>BuiltSmart Hub</strong>
+                <p class="muted">Logo, Farben, Domain, E-Mail- und PDF-Vorlagen konfigurierbar.</p>
+              </div>
+            </div>
+          </section>
+        </section>
+      </section>
+    </main>
+  </body>
+</html>
