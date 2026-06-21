@@ -48,7 +48,7 @@ import {
   UsersRound,
   X
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type RiskLevel = "Gruen" | "Gelb" | "Rot";
 type DocumentStatus = "Analysiert" | "In Pruefung" | "Offen" | "Archiviert";
@@ -78,6 +78,27 @@ type ProjectRecord = {
   end: string;
   risk: RiskLevel;
   summary: string;
+};
+
+type FolderConnector = {
+  id: string;
+  name: string;
+  path: string;
+  status: "Aktiv" | "Bereit" | "Fehler" | "Geplant";
+  lastScan?: string;
+  documentsFound: number;
+  error?: string;
+};
+
+type ApiState = {
+  connectors: FolderConnector[];
+  documents: Array<DocumentRecord & {
+    filePath?: string;
+    fileName?: string;
+    modifiedAt?: string;
+    sourceConnectorId?: string;
+  }>;
+  auditTrail: string[];
 };
 
 const tenants = [
@@ -289,26 +310,97 @@ export default function Home() {
   const [selectedMode, setSelectedMode] = useState(modes[2]);
   const [selectedDocId, setSelectedDocId] = useState(documents[0].id);
   const [chatInput, setChatInput] = useState("Welche Dokumente benötigen diese Woche Management-Aufmerksamkeit?");
+  const [chatAnswer, setChatAnswer] = useState("Priorität haben Nachtrag Elektro, Rechnung Juni und Angebot Stahlbau. Quellen: DOC-1042, DOC-1019, DOC-1007.");
+  const [chatSources, setChatSources] = useState([{ id: "DOC-1042", title: "Nachtrag Elektro" }, { id: "DOC-1019", title: "Rechnung Juni" }, { id: "DOC-1007", title: "Angebot Stahlbau" }]);
   const [uploadedFiles, setUploadedFiles] = useState(["Nachtrag_Elektro_Gewerk3.pdf", "Lieferschein_1458.xlsx"]);
+  const [apiState, setApiState] = useState<ApiState>({ connectors: [], documents: [], auditTrail: [] });
+  const [folderPath, setFolderPath] = useState("/Users/bernhardmetzger/Documents/Playground/SMART Document Intelligence");
+  const [folderName, setFolderName] = useState("Lokaler Dokumentenordner");
+  const [isScanning, setIsScanning] = useState(false);
+  const [systemMessage, setSystemMessage] = useState("Noch keine lokale Ordnerquelle gescannt.");
+
+  const allDocuments = useMemo(() => {
+    const scannedIds = new Set(apiState.documents.map((document) => document.id));
+    return [...apiState.documents, ...documents.filter((document) => !scannedIds.has(document.id))];
+  }, [apiState.documents]);
 
   const filteredDocs = useMemo(() => {
-    return documents.filter((document) => {
+    return allDocuments.filter((document) => {
       const projectMatch = projectFilter === "Alle Projekte" || document.project === projectFilter;
       const riskMatch = riskFilter === "Alle Risiken" || riskText(document.risk) === riskFilter;
       return projectMatch && riskMatch;
     });
-  }, [projectFilter, riskFilter]);
+  }, [allDocuments, projectFilter, riskFilter]);
 
-  const selectedDoc = documents.find((document) => document.id === selectedDocId) ?? documents[0];
-  const criticalDocs = documents.filter((document) => document.risk === "Rot").length;
-  const openTasks = documents.reduce((sum, document) => sum + document.tasks.length, 0);
-  const deadlines = documents.reduce((sum, document) => sum + document.deadlines.length, 0);
-  const redRisks = documents.reduce((sum, document) => sum + document.risks.filter(() => document.risk === "Rot").length, 0);
+  const selectedDoc = allDocuments.find((document) => document.id === selectedDocId) ?? allDocuments[0] ?? documents[0];
+  const criticalDocs = allDocuments.filter((document) => document.risk === "Rot").length;
+  const openTasks = allDocuments.reduce((sum, document) => sum + document.tasks.length, 0);
+  const deadlines = allDocuments.reduce((sum, document) => sum + document.deadlines.length, 0);
+  const redRisks = allDocuments.reduce((sum, document) => sum + document.risks.filter(() => document.risk === "Rot").length, 0);
+
+  useEffect(() => {
+    refreshState();
+  }, []);
 
   function handleFiles(files: FileList | null) {
     if (!files) return;
     const nextFiles = Array.from(files).map((file) => file.name);
     setUploadedFiles((current) => [...nextFiles, ...current].slice(0, 5));
+  }
+
+  async function refreshState() {
+    const response = await fetch("/api/state");
+    if (!response.ok) return;
+    const nextState = (await response.json()) as ApiState;
+    setApiState(nextState);
+    if (nextState.documents.length > 0) {
+      setSystemMessage(`${nextState.documents.length} lokale Dokumente im Analysebestand.`);
+    }
+  }
+
+  async function createConnector() {
+    setSystemMessage("Ordnerquelle wird angelegt...");
+    const response = await fetch("/api/connectors", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: folderName, path: folderPath })
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      setSystemMessage(result.error ?? "Ordnerquelle konnte nicht angelegt werden.");
+      return;
+    }
+    setApiState((current) => ({ ...current, connectors: [result.connector, ...current.connectors] }));
+    setSystemMessage("Ordnerquelle angelegt. Scan kann gestartet werden.");
+  }
+
+  async function scanConnector(connectorId: string) {
+    setIsScanning(true);
+    setSystemMessage("Ordner wird gescannt und Dokumente werden klassifiziert...");
+    const response = await fetch(`/api/connectors/${connectorId}/scan`, { method: "POST" });
+    const result = await response.json();
+    await refreshState();
+    setIsScanning(false);
+    if (result.connector?.status === "Fehler") {
+      setSystemMessage(`Scanfehler: ${result.connector.error}`);
+      return;
+    }
+    setSystemMessage(`${result.documents?.length ?? 0} Dokumente erkannt, klassifiziert und gespeichert.`);
+  }
+
+  async function askKnowledgeBase() {
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: chatInput })
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      setChatAnswer(result.error ?? "Die Frage konnte nicht beantwortet werden.");
+      return;
+    }
+    setChatAnswer(result.answer);
+    setChatSources(result.sources ?? []);
   }
 
   return (
@@ -374,7 +466,7 @@ export default function Home() {
         </header>
 
         <section className="metric-grid" aria-label="Kennzahlen">
-          <Metric title="Analysierte Dokumente" value={documents.length.toString()} delta="+12 diese Woche" icon={<FileArchive size={20} />} />
+          <Metric title="Analysierte Dokumente" value={allDocuments.length.toString()} delta={`${apiState.documents.length} aus Ordnern`} icon={<FileArchive size={20} />} />
           <Metric title="Kritische Dokumente" value={criticalDocs.toString()} delta="1 neu seit gestern" icon={<AlertTriangle size={20} />} danger />
           <Metric title="Offene Aufgaben" value={openTasks.toString()} delta="6 mit Verantwortlichen" icon={<ClipboardCheck size={20} />} />
           <Metric title="Erkannte Fristen" value={deadlines.toString()} delta="3 innerhalb 14 Tage" icon={<CalendarClock size={20} />} />
@@ -493,15 +585,36 @@ export default function Home() {
               </div>
               <Cloud size={22} />
             </div>
+            <div className="connector-form">
+              <label>
+                <span>Quellenname</span>
+                <input value={folderName} onChange={(event) => setFolderName(event.target.value)} />
+              </label>
+              <label>
+                <span>Lokaler Ordnerpfad</span>
+                <input value={folderPath} onChange={(event) => setFolderPath(event.target.value)} placeholder="/Users/.../Projektordner" />
+              </label>
+              <button onClick={createConnector} type="button">
+                <Plus size={17} />
+                Ordnerquelle anlegen
+              </button>
+              <small>{systemMessage}</small>
+            </div>
             <div className="source-list">
-              {monitoringSources.map((source) => (
-                <div className="source-item" key={source.name}>
+              {[...apiState.connectors, ...monitoringSources.map((source) => ({ id: source.name, name: source.name, path: "Demo-Quelle", status: source.status as FolderConnector["status"], documentsFound: source.files }))].map((source) => (
+                <div className="source-item" key={source.id}>
                   <ServerCog size={18} />
                   <div>
                     <strong>{source.name}</strong>
-                    <span>{source.files} neue oder geänderte Dateien</span>
+                    <span>{source.documentsFound} erkannte Dateien · {source.path}</span>
                   </div>
                   <span className={source.status === "Aktiv" ? "status status-green" : source.status === "Bereit" ? "status status-yellow" : "status"}>{source.status}</span>
+                  {source.path !== "Demo-Quelle" ? (
+                    <button className="scan-button" disabled={isScanning} onClick={() => scanConnector(source.id)} type="button">
+                      <Workflow size={15} />
+                      Scannen
+                    </button>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -736,16 +849,16 @@ export default function Home() {
             </div>
             <div className="chat-answer">
               <Sparkles size={18} />
-              <p>Priorität haben {documents[0].title}, {documents[2].title} und {documents[3].title}. Quellen: DOC-1042, DOC-1019, DOC-1007.</p>
+              <p>{chatAnswer}</p>
             </div>
             <div className="source-citations">
-              <span><BookOpen size={14} /> DOC-1042 Nachtrag Elektro</span>
-              <span><BookOpen size={14} /> DOC-1019 Rechnung Juni</span>
-              <span><BookOpen size={14} /> DOC-1007 Angebot Stahlbau</span>
+              {chatSources.map((source) => (
+                <span key={source.id}><BookOpen size={14} /> {source.id} {source.title}</span>
+              ))}
             </div>
             <div className="chat-input">
               <input value={chatInput} onChange={(event) => setChatInput(event.target.value)} />
-              <button title="Frage senden">
+              <button title="Frage senden" onClick={askKnowledgeBase} type="button">
                 <MessageSquareText size={18} />
               </button>
             </div>

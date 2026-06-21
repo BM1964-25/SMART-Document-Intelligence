@@ -585,7 +585,7 @@ button {
 
 .source-item {
   display: grid;
-  grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+  grid-template-columns: 1.25rem minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 0.6rem;
 }
@@ -597,6 +597,65 @@ button {
 .source-item strong,
 .source-item span {
   display: block;
+}
+
+.connector-form {
+  display: grid;
+  gap: 0.55rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid #dce5ff;
+  border-radius: 0.5rem;
+  background: var(--soft-blue);
+  padding: 0.75rem;
+}
+
+.connector-form label {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.connector-form label span,
+.connector-form small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.connector-form input {
+  min-width: 0;
+  width: 100%;
+  min-height: 2.35rem;
+  border: 1px solid #d7e2ff;
+  border-radius: 0.45rem;
+  background: #ffffff;
+  color: var(--ink);
+  padding: 0 0.7rem;
+}
+
+.connector-form button,
+.scan-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 2.35rem;
+  border: 0;
+  border-radius: 0.45rem;
+  background: var(--primary);
+  color: #ffffff;
+  padding: 0 0.7rem;
+}
+
+.scan-button {
+  min-height: 1.95rem;
+  background: #f7f9ff;
+  border: 1px solid #d7e2ff;
+  color: var(--primary-dark);
+}
+
+.scan-button:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }
 
 .mode-grid {
@@ -1054,6 +1113,16 @@ button.table-row:hover,
 
   .relationship-item {
     grid-template-columns: 1fr;
+  }
+
+  .source-item {
+    grid-template-columns: 1.25rem minmax(0, 1fr);
+  }
+
+  .source-item .status,
+  .source-item .scan-button {
+    grid-column: 2;
+    justify-self: start;
   }
 }
 
