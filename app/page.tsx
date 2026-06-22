@@ -388,6 +388,23 @@ export default function Home() {
     setSystemMessage(`${result.documents?.length ?? 0} Dokumente erkannt, klassifiziert und gespeichert.`);
   }
 
+  async function scanAllSources() {
+    setIsScanning(true);
+    setSystemMessage("Alle Ordnerquellen werden neu gescannt...");
+    let scannedSources = 0;
+    for (const connector of apiState.connectors) {
+      await fetch(`/api/connectors/${connector.id}/scan`, { method: "POST" });
+      scannedSources += 1;
+    }
+    await refreshState();
+    setIsScanning(false);
+    setSystemMessage(`${scannedSources} Quellen neu geprüft.`);
+  }
+
+  function downloadExport(kind: "management" | "risks" | "tasks" | "deadlines" | "documents", format: "json" | "csv" = "json") {
+    window.location.href = `/api/export/${kind}?format=${format}`;
+  }
+
   async function askKnowledgeBase() {
     const response = await fetch("/api/chat", {
       method: "POST",
@@ -597,6 +614,10 @@ export default function Home() {
               <button onClick={createConnector} type="button">
                 <Plus size={17} />
                 Ordnerquelle anlegen
+              </button>
+              <button disabled={isScanning || apiState.connectors.length === 0} onClick={scanAllSources} type="button">
+                <Workflow size={17} />
+                Alle Quellen scannen
               </button>
               <small>{systemMessage}</small>
             </div>
@@ -958,9 +979,11 @@ export default function Home() {
               <Archive size={22} />
             </div>
             <div className="export-grid">
-              <button><Download size={18} /> Management Summary PDF</button>
-              <button><FileText size={18} /> Prüfbericht Word</button>
-              <button><CircleDollarSign size={18} /> Aufgabenliste Excel</button>
+              <button onClick={() => downloadExport("management")} type="button"><Download size={18} /> Management JSON</button>
+              <button onClick={() => downloadExport("risks", "csv")} type="button"><AlertTriangle size={18} /> Risikobericht CSV</button>
+              <button onClick={() => downloadExport("tasks", "csv")} type="button"><CircleDollarSign size={18} /> Aufgabenliste CSV</button>
+              <button onClick={() => downloadExport("deadlines", "csv")} type="button"><CalendarClock size={18} /> Fristenliste CSV</button>
+              <button onClick={() => downloadExport("documents", "csv")} type="button"><FileText size={18} /> Dokumentliste CSV</button>
               <button><KeyRound size={18} /> Eigenen API-Key nutzen</button>
               <button><UsersRound size={18} /> Mandantenverwaltung</button>
               <button><X size={18} /> Daten löschen</button>

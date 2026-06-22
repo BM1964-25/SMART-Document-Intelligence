@@ -144,17 +144,32 @@ export async function scanConnector(connectorId: string) {
   }
 }
 
+export async function scanAllConnectors() {
+  const data = await readData();
+  const connectorIds = data.connectors.map((connector) => connector.id);
+  const results = [];
+  for (const connectorId of connectorIds) {
+    results.push(await scanConnector(connectorId));
+  }
+  return results;
+}
+
 export async function answerQuestion(question: string) {
   const data = await readData();
   const normalized = question.toLowerCase();
+  const terms = normalized
+    .split(/\s+/)
+    .map((word) => word.replace(/[^\p{L}\p{N}]/gu, ""))
+    .filter((word) => word.length > 3);
   const matches = data.documents
-    .filter((document) => {
+    .map((document) => {
       const haystack = `${document.title} ${document.type} ${document.summary} ${document.risks.join(" ")} ${document.tasks.join(" ")} ${document.deadlines.join(" ")} ${document.extractedText}`.toLowerCase();
-      return normalized
-        .split(/\s+/)
-        .filter((word) => word.length > 3)
-        .some((word) => haystack.includes(word));
+      const score = terms.reduce((sum, word) => sum + (haystack.includes(word) ? 1 : 0), 0) + (document.risk === "Rot" ? 0.5 : 0);
+      return { document, score };
     })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((item) => item.document)
     .slice(0, 5);
 
   const documents = matches.length > 0 ? matches : data.documents.slice(0, 5);
@@ -170,6 +185,45 @@ export async function answerQuestion(question: string) {
           : "Ich habe keine kritischen Treffer gefunden. Die beste Trefferliste basiert auf Titel, Dokumenttyp, Risiken, Aufgaben und extrahiertem Text.",
     sources: documents.map((document) => ({ id: document.id, title: document.title, path: document.filePath }))
   };
+}
+
+export async function createExportPayload(kind: "management" | "risks" | "tasks" | "deadlines" | "documents") {
+  const data = await readData();
+  const now = new Date().toISOString();
+  const critical = data.documents.filter((document) => document.risk === "Rot");
+  const tasks = data.documents.flatMap((document) => document.tasks.map((task) => ({ documentId: document.id, document: document.title, task, owner: document.owner, priority: document.priority })));
+  const deadlines = data.documents.flatMap((document) => document.deadlines.map((deadline) => ({ documentId: document.id, document: document.title, deadline })));
+
+  const payload = {
+    generatedAt: now,
+    kind,
+    summary: {
+      documents: data.documents.length,
+      connectors: data.connectors.length,
+      criticalDocuments: critical.length,
+      tasks: tasks.length,
+      deadlines: deadlines.length
+    },
+    connectors: data.connectors,
+    documents: data.documents.map((document) => ({
+      id: document.id,
+      title: document.title,
+      type: document.type,
+      project: document.project,
+      risk: document.risk,
+      priority: document.priority,
+      status: document.status,
+      summary: document.summary,
+      nextStep: document.nextStep,
+      source: document.filePath
+    })),
+    risks: data.documents.flatMap((document) => document.risks.map((risk) => ({ documentId: document.id, document: document.title, risk, level: document.risk }))),
+    tasks,
+    deadlines,
+    auditTrail: data.auditTrail.slice(0, 50)
+  };
+
+  return payload;
 }
 
 async function listFiles(folderPath: string, limit: number) {
@@ -195,16 +249,59 @@ async function listFiles(folderPath: string, limit: number) {
 }
 
 async function extractPreviewText(file: string, extension: string) {
-  if (!textExtensions.has(extension)) {
-    return `Datei ${path.basename(file)} wurde erkannt. Volltext-Extraktion fuer ${extension || "unbekannt"} ist als naechster Adapter vorgesehen.`;
-  }
-
   try {
-    const raw = await readFile(file, "utf8");
-    return raw.replace(/\s+/g, " ").trim().slice(0, 6000);
-  } catch {
-    return `Datei ${path.basename(file)} wurde erkannt, konnte aber nicht als Text gelesen werden.`;
+    if (extension === ".pdf") return await extractPdf(file);
+    if (extension === ".docx") return await extractDocx(file);
+    if (extension === ".xlsx" || extension === ".xls") return await extractWorkbook(file);
+    if (textExtensions.has(extension)) {
+      const raw = await readFile(file, "utf8");
+      return normalizeExtractedText(stripMarkup(raw)).slice(0, 12000);
+    }
+    if ([".png", ".jpg", ".jpeg", ".tif", ".tiff"].includes(extension)) {
+      return `Bild/Scan ${path.basename(file)} wurde erkannt. OCR ist vorbereitet, benoetigt aber einen Tesseract- oder Cloud-OCR-Adapter.`;
+    }
+    return `Datei ${path.basename(file)} wurde erkannt. Fuer ${extension || "unbekannt"} ist noch kein Volltextadapter aktiviert.`;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "unbekannter Fehler";
+    return `Datei ${path.basename(file)} wurde erkannt, konnte aber nicht extrahiert werden: ${reason}`;
   }
+}
+
+async function extractPdf(file: string) {
+  const buffer = await readFile(file);
+  const text = buffer
+    .toString("latin1")
+    .replace(/[^\x20-\x7EÄÖÜäöüß€\n\r\t]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const usefulText = text
+    .split(" ")
+    .filter((token) => /[A-Za-zÄÖÜäöüß]{3,}/.test(token))
+    .join(" ");
+  return usefulText
+    ? normalizeExtractedText(usefulText).slice(0, 12000)
+    : `PDF ${path.basename(file)} wurde erkannt. Für gescannte oder komprimierte PDFs ist ein OCR/PDF-Textadapter erforderlich.`;
+}
+
+async function extractDocx(file: string) {
+  const mammoth = await import("mammoth");
+  const result = await mammoth.extractRawText({ path: file });
+  return normalizeExtractedText(result.value).slice(0, 12000);
+}
+
+async function extractWorkbook(file: string) {
+  return `Excel-Datei ${path.basename(file)} wurde erkannt. CSV-Dateien werden bereits direkt ausgelesen; fuer native XLS/XLSX-Dateien ist als naechster stabiler Adapter LibreOffice- oder Cloud-Konvertierung vorgesehen.`;
+}
+
+function stripMarkup(text: string) {
+  return text
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ");
+}
+
+function normalizeExtractedText(text: string) {
+  return text.replace(/\s+/g, " ").trim();
 }
 
 function analyzeFile(input: { id: string; file: string; size: number; modifiedAt: string; extractedText: string; sourceConnectorId: string }): StoredDocument {
